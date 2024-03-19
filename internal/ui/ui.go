@@ -139,7 +139,7 @@ func (ui UI) View() string {
 		case OUTPUTFILENAME_SCREEN:
 		screen += fmt.Sprintf("Enter output filename:\n\n%s", ui.outputFilenameInput.View())
 		case END_SCREEN:
-		screen += "File created successfully. (Press any button to exit)"
+		screen += "File created successfully. (Press any button to exit)\n\n"
 	}
 	if ui.page != END_SCREEN{
 		screen += "\n\n(esc to quit)\n\n"

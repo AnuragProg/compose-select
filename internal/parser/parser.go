@@ -2,14 +2,15 @@ package parser
 
 import (
 	"errors"
-	"os"
 	"io/fs"
+	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 type ComposeFile struct {
 	services						map[string]interface{}
+	otherThanServices			map[string]interface{}
 	dependentServicesYAML	map[string]interface{}
 }
 
@@ -30,8 +31,15 @@ func NewComposeFile(filename string) (*ComposeFile, error){
 		return nil, errors.New("services section not defined in compose file")
 	}
 
+	otherThanServices := make(map[string]interface{})
+	for prop, body := range composeYAML {
+		if prop == "services" { continue }
+		otherThanServices[prop] = body
+	}
+
 	return &ComposeFile{
 		services: services,
+		otherThanServices: otherThanServices,
 	}, nil
 }
 
@@ -104,18 +112,16 @@ func (cf *ComposeFile) GetDependentServicesYAML(serviceName string) error {
 
 func (cf *ComposeFile) WriteYAML(filename string) error {
 
-	yamlData := map[string]interface{}{
-		"version": 3,
-		"services": cf.dependentServicesYAML,
-	}
+	// to add other than services fields like version, volumes, networks, etc.
+	yamlData := cf.otherThanServices
+
+	yamlData["services"] = cf.dependentServicesYAML
+
 	// marshal yaml data
 	yamlSerialData, err := yaml.Marshal(yamlData)
 	if err != nil{
 		return err
 	}
-
-	// clear the yaml 
-
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fs.ModePerm)	
 	if err != nil{

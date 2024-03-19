@@ -9,7 +9,8 @@ import (
 )
 
 type ComposeFile struct {
-	services map[string]interface{}
+	services						map[string]interface{}
+	dependentServicesYAML	map[string]interface{}
 }
 
 func NewComposeFile(filename string) (*ComposeFile, error){
@@ -42,7 +43,7 @@ func (cf *ComposeFile) GetServiceNames() []string {
 	return serviceNames
 }
 
-func (cf *ComposeFile) GetDependencyNamesForService(serviceName string) ([]string, error) {
+func (cf *ComposeFile) getDependencyNamesForService(serviceName string) ([]string, error) {
 	serviceIface, ok := cf.services[serviceName]
 	if !ok {
 		return nil, errors.New("service not found")
@@ -62,12 +63,12 @@ func (cf *ComposeFile) GetDependencyNamesForService(serviceName string) ([]strin
 	return dependencyNames, nil
 }
 
-func (cf *ComposeFile) GetDependentServicesYAML(serviceName string) (map[string]interface{}, error) {
-	yaml := map[string]interface{}{}
+func (cf *ComposeFile) GetDependentServicesYAML(serviceName string) error {
+	cf.dependentServicesYAML = make(map[string]interface{})
 
-	serviceNames, err := cf.GetDependencyNamesForService(serviceName)
+	serviceNames, err := cf.getDependencyNamesForService(serviceName)
 	if err != nil{
-		return nil, err
+		return err
 	}
 
 	for len(serviceNames) > 0 {
@@ -79,35 +80,42 @@ func (cf *ComposeFile) GetDependentServicesYAML(serviceName string) (map[string]
 		// construct service yaml
 		curServiceYAML, ok := cf.services[curServiceName]
 		if !ok {
-			return yaml, errors.New(curServiceName + " not found")
+			return errors.New(curServiceName + " not found")
 		}
-		yaml[curServiceName] = curServiceYAML // add service yaml
+		cf.dependentServicesYAML[curServiceName] = curServiceYAML // add service yaml
 
 		// retrieve dependencies
-		curServiceDependencies, err := cf.GetDependencyNamesForService(curServiceName)
+		curServiceDependencies, err := cf.getDependencyNamesForService(curServiceName)
 		if err != nil{
-			return nil, err
+			return err
 		}
 
 		// add non visited dependency
 		for _, nextService := range curServiceDependencies{
-			if _, ok := yaml[nextService]; ok || nextService == serviceName{
+			if _, ok := cf.dependentServicesYAML[nextService]; ok || nextService == serviceName{
 				continue
 			}
 			serviceNames = append(serviceNames, nextService)
 		}
 	}
-	return yaml, nil
+	return nil
 }
 
 
-func (cf *ComposeFile) WriteYAML(filename string, yamlData map[string]interface{}) error {
+func (cf *ComposeFile) WriteYAML(filename string) error {
 
+	yamlData := map[string]interface{}{
+		"version": 3,
+		"services": cf.dependentServicesYAML,
+	}
 	// marshal yaml data
 	yamlSerialData, err := yaml.Marshal(yamlData)
 	if err != nil{
 		return err
 	}
+
+	// clear the yaml 
+
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fs.ModePerm)	
 	if err != nil{
